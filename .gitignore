@@ -1,0 +1,8 @@
+/backend/target/
+/frontend/target/
+/backend/uploads/
+*.class
+*.wav
+/dao.docx
+.idea/
+*.iml
