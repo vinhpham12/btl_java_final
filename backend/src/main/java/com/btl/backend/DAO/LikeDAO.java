@@ -48,7 +48,9 @@ public class LikeDAO {
         try (PreparedStatement ps = conn.prepareStatement(sql)) {
             ps.setInt(1, userId);
             ps.setInt(2, trackId);
-            return ps.executeQuery().next();
+            try (ResultSet rs = ps.executeQuery()) {
+                return rs.next();
+            }
         } catch (SQLException e) {
             System.err.println("[LikeDao] isLiked error: " + e.getMessage());
         } finally {
@@ -62,8 +64,9 @@ public class LikeDAO {
         Connection conn = DBConnection.getConnection();
         try (PreparedStatement ps = conn.prepareStatement(sql)) {
             ps.setInt(1, trackId);
-            ResultSet rs = ps.executeQuery();
-            if (rs.next()) return rs.getInt(1);
+            try (ResultSet rs = ps.executeQuery()) {
+                if (rs.next()) return rs.getInt(1);
+            }
         } catch (SQLException e) {
             System.err.println("[LikeDao] getLikeCount error: " + e.getMessage());
         } finally {

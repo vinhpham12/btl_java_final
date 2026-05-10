@@ -10,6 +10,7 @@ package com.btl.frontend.ui;
  */
 import com.btl.frontend.api.ApiClient;
 import com.btl.frontend.audio.AudioPlayer;
+import com.btl.frontend.audio.QueueManager;
 import com.btl.frontend.util.*;
 import javax.swing.*;
 import java.awt.*;
@@ -23,6 +24,10 @@ import java.util.List;
  */
 public class TrackPanel extends JPanel {
 
+    public interface TrackDeleteListener {
+        void onTrackDeleted();
+    }
+
     private final AudioPlayer player;
     private final PlayerBar playerBar;
     private Map<String, Object> trackData;
@@ -31,12 +36,27 @@ public class TrackPanel extends JPanel {
     private JTextField commentField;
     private JLabel likeLabel;
     private boolean isLiked;
+    private QueueManager queueManager;
+    private int currentUserId = -1;
+    private TrackDeleteListener deleteListener;
 
     public TrackPanel(AudioPlayer player, PlayerBar playerBar) {
         this.player = player;
         this.playerBar = playerBar;
         setBackground(UIConstants.BG_DARK);
         setLayout(new BorderLayout());
+    }
+
+    public void setQueueManager(QueueManager qm) {
+        this.queueManager = qm;
+    }
+
+    public void setCurrentUserId(int userId) {
+        this.currentUserId = userId;
+    }
+
+    public void setDeleteListener(TrackDeleteListener listener) {
+        this.deleteListener = listener;
     }
 
     public void loadTrack(Map<String, Object> track) {
@@ -55,7 +75,8 @@ public class TrackPanel extends JPanel {
         content.setBorder(BorderFactory.createEmptyBorder(24, 24, 24, 24));
 
         String title = JsonHelper.getString(trackData, "title", "Untitled");
-        String artist = JsonHelper.getString(trackData, "artist", JsonHelper.getString(trackData, "uploaderName", "Unknown"));
+        String artist = JsonHelper.getString(trackData, "artist",
+                JsonHelper.getString(trackData, "uploaderName", "Unknown"));
         String genre = JsonHelper.getString(trackData, "genre", "");
         String desc = JsonHelper.getString(trackData, "description", "");
         int duration = JsonHelper.getInt(trackData, "durationSeconds");
@@ -115,13 +136,16 @@ public class TrackPanel extends JPanel {
         actions.setAlignmentX(Component.LEFT_ALIGNMENT);
 
         likeLabel = new JLabel(" " + likes);
-        likeLabel.setIcon(isLiked ? IconFactory.heartIcon(18, UIConstants.LIKE_RED, true) : IconFactory.heartIcon(18, UIConstants.TEXT_SECONDARY, false));
+        likeLabel.setIcon(isLiked ? IconFactory.heartIcon(18, UIConstants.LIKE_RED, true)
+                : IconFactory.heartIcon(18, UIConstants.TEXT_SECONDARY, false));
         likeLabel.setFont(UIConstants.FONT_HEADING);
         likeLabel.setForeground(isLiked ? UIConstants.LIKE_RED : UIConstants.TEXT_SECONDARY);
         likeLabel.setCursor(new Cursor(Cursor.HAND_CURSOR));
         likeLabel.addMouseListener(new MouseAdapter() {
             @Override
-            public void mouseClicked(MouseEvent e) { toggleLike(trackId); }
+            public void mouseClicked(MouseEvent e) {
+                toggleLike(trackId);
+            }
         });
         actions.add(likeLabel);
 
@@ -139,6 +163,7 @@ public class TrackPanel extends JPanel {
                 addToPlaylistBtn.setForeground(UIConstants.ACCENT_LIGHT);
                 addToPlaylistBtn.setIcon(IconFactory.plusIcon(16, UIConstants.ACCENT_LIGHT));
             }
+
             public void mouseExited(MouseEvent ev) {
                 addToPlaylistBtn.setForeground(UIConstants.ACCENT);
                 addToPlaylistBtn.setIcon(IconFactory.plusIcon(16, UIConstants.ACCENT));
@@ -148,6 +173,68 @@ public class TrackPanel extends JPanel {
             PlaylistPanel.showAddToPlaylistDialog(this, trackId, title);
         });
         actions.add(addToPlaylistBtn);
+
+        // Nút Share (copy link)
+        JButton shareBtn = createActionBtn(" Share", IconFactory.shareIcon(16, UIConstants.TEXT_SECONDARY),
+                UIConstants.TEXT_SECONDARY);
+        shareBtn.addActionListener(e -> {
+            String link = UIConstants.API_BASE_URL + "/tracks/" + trackId + "/stream";
+            java.awt.datatransfer.StringSelection sel = new java.awt.datatransfer.StringSelection(link);
+            java.awt.Toolkit.getDefaultToolkit().getSystemClipboard().setContents(sel, null);
+            JOptionPane.showMessageDialog(this, "Link copied to clipboard!", "Share", JOptionPane.INFORMATION_MESSAGE);
+        });
+        actions.add(shareBtn);
+
+        // Nút Repost
+        JButton repostBtn = createActionBtn(" Repost", IconFactory.repostIcon(16, UIConstants.TEXT_SECONDARY),
+                UIConstants.TEXT_SECONDARY);
+        repostBtn.addActionListener(e -> {
+            new Thread(() -> {
+                try {
+                    ApiClient.post("/tracks/" + trackId + "/repost", new HashMap<>());
+                    SwingUtilities.invokeLater(() -> {
+                        repostBtn.setForeground(UIConstants.SUCCESS);
+                        repostBtn.setIcon(IconFactory.repostIcon(16, UIConstants.SUCCESS));
+                        repostBtn.setText(" Reposted!");
+                    });
+                } catch (Exception ex) {
+                    System.err.println("Repost error: " + ex.getMessage());
+                }
+            }).start();
+        });
+        actions.add(repostBtn);
+
+        // Nút Download
+        JButton downloadBtn = createActionBtn(" Download", IconFactory.downloadIcon(16, UIConstants.TEXT_SECONDARY),
+                UIConstants.TEXT_SECONDARY);
+        downloadBtn.addActionListener(e -> downloadTrack(trackId, title));
+        actions.add(downloadBtn);
+
+        // Nút Add to Queue
+        JButton queueBtn = createActionBtn(" Queue", IconFactory.queueIcon(16, UIConstants.TEXT_SECONDARY),
+                UIConstants.TEXT_SECONDARY);
+        queueBtn.addActionListener(e -> {
+            if (queueManager != null) {
+                queueManager.addToQueue(trackData);
+                queueBtn.setForeground(UIConstants.SUCCESS);
+                queueBtn.setText(" Added!");
+                javax.swing.Timer timer = new javax.swing.Timer(1500, ev -> {
+                    queueBtn.setText(" Queue");
+                    queueBtn.setForeground(UIConstants.TEXT_SECONDARY);
+                });
+                timer.setRepeats(false);
+                timer.start();
+            }
+        });
+        actions.add(queueBtn);
+
+        // Nút Xóa bài hát (chỉ hiển khi chủ bài hát)
+        int trackOwnerId = JsonHelper.getInt(trackData, "userId");
+        if (currentUserId > 0 && trackOwnerId == currentUserId) {
+            JButton deleteBtn = createActionBtn(" Delete", IconFactory.closeIcon(16, UIConstants.ERROR), UIConstants.ERROR);
+            deleteBtn.addActionListener(e -> deleteTrack(trackId, title));
+            actions.add(deleteBtn);
+        }
 
         content.add(actions);
         content.add(Box.createVerticalStrut(8));
@@ -189,13 +276,13 @@ public class TrackPanel extends JPanel {
         commentField.setBackground(UIConstants.BG_INPUT);
         commentField.setCaretColor(UIConstants.TEXT_PRIMARY);
         commentField.setBorder(BorderFactory.createCompoundBorder(
-            BorderFactory.createLineBorder(UIConstants.BORDER, 1),
-            BorderFactory.createEmptyBorder(6, 10, 6, 10)
-        ));
+                BorderFactory.createLineBorder(UIConstants.BORDER, 1),
+                BorderFactory.createEmptyBorder(6, 10, 6, 10)));
         commentField.addKeyListener(new KeyAdapter() {
             @Override
             public void keyPressed(KeyEvent e) {
-                if (e.getKeyCode() == KeyEvent.VK_ENTER) postComment(trackId);
+                if (e.getKeyCode() == KeyEvent.VK_ENTER)
+                    postComment(trackId);
             }
         });
 
@@ -247,7 +334,8 @@ public class TrackPanel extends JPanel {
                         playerBar.setCurrentTrackData(trackId, title, artist);
                         // Load waveform
                         float[] waveform = player.getWaveformData(200);
-                        waveformPanel.setWaveformData(waveform);
+                        if (waveformPanel != null)
+                            waveformPanel.setWaveformData(waveform);
                     });
                 }
             } catch (Exception ex) {
@@ -271,7 +359,8 @@ public class TrackPanel extends JPanel {
                 SwingUtilities.invokeLater(() -> {
                     isLiked = newLiked;
                     likeLabel.setText(" " + newCount);
-                    likeLabel.setIcon(isLiked ? IconFactory.heartIcon(18, UIConstants.LIKE_RED, true) : IconFactory.heartIcon(18, UIConstants.TEXT_SECONDARY, false));
+                    likeLabel.setIcon(isLiked ? IconFactory.heartIcon(18, UIConstants.LIKE_RED, true)
+                            : IconFactory.heartIcon(18, UIConstants.TEXT_SECONDARY, false));
                     likeLabel.setForeground(isLiked ? UIConstants.LIKE_RED : UIConstants.TEXT_SECONDARY);
                 });
             } catch (Exception ex) {
@@ -282,7 +371,8 @@ public class TrackPanel extends JPanel {
 
     private void postComment(int trackId) {
         String text = commentField.getText().trim();
-        if (text.isEmpty()) return;
+        if (text.isEmpty())
+            return;
         int timestamp = player.getCurrentSeconds();
 
         new Thread(() -> {
@@ -310,7 +400,8 @@ public class TrackPanel extends JPanel {
                 Map<String, Object> response = ApiClient.get("/tracks/" + trackId + "/comments");
                 @SuppressWarnings("unchecked")
                 List<Map<String, Object>> comments = (List<Map<String, Object>>) response.get("data");
-                if (comments == null) comments = new ArrayList<>();
+                if (comments == null)
+                    comments = new ArrayList<>();
                 final List<Map<String, Object>> finalComments = comments;
 
                 SwingUtilities.invokeLater(() -> {
@@ -364,5 +455,73 @@ public class TrackPanel extends JPanel {
         card.add(left, BorderLayout.CENTER);
         return card;
     }
-}
 
+    private JButton createActionBtn(String text, javax.swing.Icon icon, Color color) {
+        JButton btn = new JButton(text);
+        btn.setIcon(icon);
+        btn.setFont(UIConstants.FONT_BUTTON);
+        btn.setForeground(color);
+        btn.setBorderPainted(false);
+        btn.setContentAreaFilled(false);
+        btn.setFocusPainted(false);
+        btn.setCursor(new Cursor(Cursor.HAND_CURSOR));
+        return btn;
+    }
+
+    private void downloadTrack(int trackId, String title) {
+        new Thread(() -> {
+            try {
+                byte[] data = ApiClient.downloadBytes("/tracks/" + trackId + "/stream");
+                if (data != null) {
+                    SwingUtilities.invokeLater(() -> {
+                        JFileChooser fc = new JFileChooser();
+                        fc.setSelectedFile(new java.io.File(title + ".wav"));
+                        int result = fc.showSaveDialog(this);
+                        if (result == JFileChooser.APPROVE_OPTION) {
+                            try (java.io.FileOutputStream fos = new java.io.FileOutputStream(fc.getSelectedFile())) {
+                                fos.write(data);
+                                JOptionPane.showMessageDialog(this, "Downloaded successfully!", "Download",
+                                        JOptionPane.INFORMATION_MESSAGE);
+                            } catch (Exception ex) {
+                                JOptionPane.showMessageDialog(this, "Download failed: " + ex.getMessage(), "Error",
+                                        JOptionPane.ERROR_MESSAGE);
+                            }
+                        }
+                    });
+                }
+            } catch (Exception ex) {
+                System.err.println("Download error: " + ex.getMessage());
+            }
+        }).start();
+    }
+
+    private void deleteTrack(int trackId, String title) {
+        int choice = JOptionPane.showConfirmDialog(this,
+            "Bạn có chắc muốn gỡ bài hát \"" + title + "\"?\nHành động này không thể hoàn tác.",
+            "Xác nhận xóa", JOptionPane.YES_NO_OPTION, JOptionPane.WARNING_MESSAGE);
+        if (choice != JOptionPane.YES_OPTION) return;
+
+        new Thread(() -> {
+            try {
+                Map<String, Object> response = ApiClient.delete("/tracks/" + trackId);
+                String status = JsonHelper.getString(response, "status", "");
+                SwingUtilities.invokeLater(() -> {
+                    if ("success".equals(status)) {
+                        JOptionPane.showMessageDialog(this,
+                            "Đã gỡ bài hát \"" + title + "\" thành công!",
+                            "Thành công", JOptionPane.INFORMATION_MESSAGE);
+                        if (deleteListener != null) deleteListener.onTrackDeleted();
+                    } else {
+                        String msg = JsonHelper.getString(response, "message", "Unknown error");
+                        JOptionPane.showMessageDialog(this,
+                            "Không thể xóa: " + msg, "Lỗi", JOptionPane.ERROR_MESSAGE);
+                    }
+                });
+            } catch (Exception ex) {
+                SwingUtilities.invokeLater(() ->
+                    JOptionPane.showMessageDialog(this,
+                        "Lỗi kết nối: " + ex.getMessage(), "Lỗi", JOptionPane.ERROR_MESSAGE));
+            }
+        }).start();
+    }
+}

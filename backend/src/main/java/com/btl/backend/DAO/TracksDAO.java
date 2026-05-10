@@ -51,8 +51,9 @@ public class TracksDAO {
             ps.executeUpdate(); //INSERT
 
             // lay id tu dong tang vua duoc tao
-            ResultSet rs = ps.getGeneratedKeys();
-            if (rs.next()) return findById(rs.getInt(1), -1);
+            try (ResultSet rs = ps.getGeneratedKeys()) {
+                if (rs.next()) return findById(rs.getInt(1), -1);
+            }
         } catch (SQLException e) {
             System.err.println("[TrackDao] create error: " + e.getMessage());
         } finally {
@@ -78,8 +79,9 @@ public class TracksDAO {
         try (PreparedStatement ps = conn.prepareStatement(sql)) {
             ps.setInt(1, currentUserId);
             ps.setInt(2, id);
-            ResultSet rs = ps.executeQuery();
-            if (rs.next()) return mapRow(rs);
+            try (ResultSet rs = ps.executeQuery()) {
+                if (rs.next()) return mapRow(rs);
+            }
         } catch (SQLException e) {
             System.err.println("[TrackDao] findById error: " + e.getMessage());
         } finally {
@@ -114,8 +116,9 @@ public class TracksDAO {
             ps.setInt(1, currentUserId);
             ps.setInt(2, limit);
             ps.setInt(3, offset);
-            ResultSet rs = ps.executeQuery();
-            while (rs.next()) tracks.add(mapRow(rs));
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) tracks.add(mapRow(rs));
+            }
         } catch (SQLException e) {
             System.err.println("[TrackDao] queryTracks error: " + e.getMessage());
         } finally {
@@ -138,8 +141,9 @@ public class TracksDAO {
         try (PreparedStatement ps = conn.prepareStatement(sql)) {
             ps.setInt(1, currentUserId);
             ps.setInt(2, userId);
-            ResultSet rs = ps.executeQuery();
-            while (rs.next()) tracks.add(mapRow(rs)); //chuyen doi tung dong ResultSet thanh Track
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) tracks.add(mapRow(rs)); //chuyen doi tung dong ResultSet thanh Track
+            }
         } catch (SQLException e) {
             System.err.println("[TrackDao] findByUserId error: " + e.getMessage());
         } finally {
@@ -166,8 +170,9 @@ public class TracksDAO {
             ps.setString(2, pattern); //tim trong title
             ps.setString(3, pattern); //tim trong artist
             ps.setString(4, pattern); //tim trong genre
-            ResultSet rs = ps.executeQuery();
-            while (rs.next()) tracks.add(mapRow(rs));
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) tracks.add(mapRow(rs));
+            }
         } catch (SQLException e) {
             System.err.println("[TrackDao] search error: " + e.getMessage());
         } finally {
@@ -211,8 +216,9 @@ public class TracksDAO {
         Connection conn = DBConnection.getConnection();
         try (PreparedStatement ps = conn.prepareStatement(sql)) {
             ps.setInt(1, id);
-            ResultSet rs = ps.executeQuery();
-            if (rs.next()) return rs.getString("file_path");
+            try (ResultSet rs = ps.executeQuery()) {
+                if (rs.next()) return rs.getString("file_path");
+            }
         } catch (SQLException e) {
             System.err.println("[TrackDao] getFilePath error: " + e.getMessage());
         } finally {
@@ -221,4 +227,39 @@ public class TracksDAO {
         return null;
     }
 
+    /**
+     * Lấy bảng xếp hạng trending.
+     * @param period: "week", "month", "all"
+     * Score = play_count + like_count * 2
+     */
+    public List<Tracks> findTrending(int currentUserId, String period, int limit) {
+        String timeFilter = switch (period != null ? period : "all") {
+            case "week" -> "AND t.created_at >= DATE_SUB(NOW(), INTERVAL 7 DAY)";
+            case "month" -> "AND t.created_at >= DATE_SUB(NOW(), INTERVAL 30 DAY)";
+            default -> "";
+        };
+        String sql = """
+            SELECT t.*, u.display_name AS uploader_name,
+                (SELECT COUNT(*) FROM likes WHERE track_id = t.id) AS like_count,
+                (SELECT COUNT(*) FROM likes WHERE track_id = t.id AND user_id = ?) AS liked
+            FROM tracks t JOIN users u ON t.user_id = u.id
+            WHERE 1=1 %s
+            ORDER BY (t.play_count + (SELECT COUNT(*) FROM likes WHERE track_id = t.id) * 2) DESC
+            LIMIT ?
+        """.formatted(timeFilter);
+        Connection conn = DBConnection.getConnection();
+        List<Tracks> tracks = new ArrayList<>();
+        try (PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setInt(1, currentUserId);
+            ps.setInt(2, limit);
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) tracks.add(mapRow(rs));
+            }
+        } catch (SQLException e) {
+            System.err.println("[TrackDao] findTrending error: " + e.getMessage());
+        } finally {
+            DBConnection.releaseConnection(conn);
+        }
+        return tracks;
+    }
 }

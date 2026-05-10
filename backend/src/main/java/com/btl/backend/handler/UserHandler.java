@@ -4,6 +4,8 @@
  */
 package com.btl.backend.handler;//khi frontend goi backend handler dong vai tro router/cotroller dua tren http(ngon ngu chung giao tiep)
 
+import com.btl.backend.DAO.NotificationDAO;
+import com.btl.backend.DAO.RepostDAO;
 import com.btl.backend.DAO.TracksDAO;
 import com.btl.backend.DAO.UsersDAO;
 import com.btl.backend.util.HttpHelper;
@@ -23,6 +25,8 @@ import com.btl.backend.util.*;
 public class UserHandler implements HttpHandler{//nhan yeu cau tu frontend va xu ly va tra ve ket qua
     private final UsersDAO userDao = new UsersDAO();
     private final TracksDAO trackDao = new TracksDAO();
+    private final NotificationDAO notifDao = new NotificationDAO();
+    private final RepostDAO repostDao = new RepostDAO();
 
     @Override
     public void handle(HttpExchange exchange) throws IOException {
@@ -62,6 +66,10 @@ public class UserHandler implements HttpHandler{//nhan yeu cau tu frontend va xu
                 String idStr = path.replace("/api/users/", "").replace("/follow", "");
                 int id = Integer.parseInt(idStr);
                 userDao.follow(currentUserId, id);
+                // Tạo notification cho người được follow
+                if (currentUserId != id) {
+                    notifDao.create(id, "follow", "đã theo dõi bạn", currentUserId, 0);
+                }
                 HttpHelper.sendJsonResponse(exchange, 200, JsonHelper.successResponse("Followed"));
 
             } else if ("DELETE".equals(method) && path.matches("/api/users/\\d+/follow")) {
@@ -70,6 +78,16 @@ public class UserHandler implements HttpHandler{//nhan yeu cau tu frontend va xu
                 int id = Integer.parseInt(idStr);
                 userDao.unfollow(currentUserId, id);
                 HttpHelper.sendJsonResponse(exchange, 200, JsonHelper.successResponse("Unfollowed"));
+
+            } else if ("GET".equals(method) && path.matches("/api/users/\\d+/reposts")) {
+                // Lấy danh sách repost của user
+                String idStr = path.replace("/api/users/", "").replace("/reposts", "");
+                int id = Integer.parseInt(idStr);
+                var reposts = repostDao.getRepostsByUser(id, currentUserId > 0 ? currentUserId : -1);
+                java.util.Map<String, Object> response = new java.util.LinkedHashMap<>();
+                response.put("status", "success");
+                response.put("data", reposts);
+                HttpHelper.sendJsonResponse(exchange, 200, JsonHelper.toJson(response));
 
             } else {
                 HttpHelper.sendJsonResponse(exchange, 404, JsonHelper.errorResponse("Not found"));

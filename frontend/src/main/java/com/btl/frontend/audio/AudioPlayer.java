@@ -10,8 +10,8 @@ package com.btl.frontend.audio;
  */
 import javax.sound.sampled.*;
 import java.io.*;
-import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.CopyOnWriteArrayList;
 
 /**
  * Engine phát nhạc sử dụng javax.sound.sampled (API âm thanh tích hợp trong JDK).
@@ -39,11 +39,13 @@ public class AudioPlayer {
 
     private Clip clip;                        // Đối tượng phát audio chính
     private PlayState state = PlayState.STOPPED;
-    private final List<PlayerListener> listeners = new ArrayList<>(); // Danh sách listener
+    private final List<PlayerListener> listeners = new CopyOnWriteArrayList<>(); // Thread-safe listener list
     private Thread positionThread;            // Thread cập nhật vị trí
     private float volume = 0.8f;              // Âm lượng (0.0 - 1.0)
     private byte[] currentAudioData;          // Dữ liệu audio hiện tại
     private int totalDurationSeconds;         // Tổng thời lượng (giây)
+    private float[] cachedWaveform;           // Waveform data đã cache
+    private int cachedWaveformSamples;        // Số samples của waveform đã cache
 
     public void addListener(PlayerListener listener) {
         listeners.add(listener);
@@ -56,6 +58,8 @@ public class AudioPlayer {
     public void load(byte[] audioData) {
         stop();
         this.currentAudioData = audioData;
+        this.cachedWaveform = null;           // Reset cache khi load bài mới
+        this.cachedWaveformSamples = 0;
         try {
             ByteArrayInputStream bais = new ByteArrayInputStream(audioData);
             AudioInputStream ais = AudioSystem.getAudioInputStream(bais);
@@ -182,6 +186,10 @@ public class AudioPlayer {
      */
     public float[] getWaveformData(int numSamples) {
         if (currentAudioData == null) return new float[0];
+        // Trả về cache nếu đã tính cho cùng numSamples
+        if (cachedWaveform != null && cachedWaveformSamples == numSamples) {
+            return cachedWaveform;
+        }
         try {
             ByteArrayInputStream bais = new ByteArrayInputStream(currentAudioData);
             AudioInputStream ais = AudioSystem.getAudioInputStream(bais);
@@ -210,6 +218,8 @@ public class AudioPlayer {
                 }
                 waveform[i] = maxVal;
             }
+            cachedWaveform = waveform;
+            cachedWaveformSamples = numSamples;
             return waveform;
         } catch (Exception e) {
             return new float[numSamples];

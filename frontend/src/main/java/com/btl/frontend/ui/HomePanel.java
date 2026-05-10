@@ -10,6 +10,7 @@ package com.btl.frontend.ui;
  */
 import com.btl.frontend.api.ApiClient;
 import com.btl.frontend.audio.AudioPlayer;
+import com.btl.frontend.audio.QueueManager;
 import com.btl.frontend.util.*;
 import javax.swing.*;
 import java.awt.*;
@@ -31,6 +32,7 @@ public class HomePanel extends JPanel {
     private final AudioPlayer player;
     private final PlayerBar playerBar;
     private final HomeListener listener;
+    private QueueManager queueManager;
     private JPanel tracksGrid;
     private JLabel statusLabel;
 
@@ -42,6 +44,8 @@ public class HomePanel extends JPanel {
         setLayout(new BorderLayout());
         buildUI();
     }
+
+    public void setQueueManager(QueueManager qm) { this.queueManager = qm; }
 
     private void buildUI() {
         JPanel mainContent = new JPanel();
@@ -226,9 +230,22 @@ public class HomePanel extends JPanel {
             PlaylistPanel.showAddToPlaylistDialog(this, tId, title);
         });
 
+        // Nút thêm vào hàng đợi
+        JButton queueBtn = IconFactory.iconButton(IconFactory.queueIcon(14, UIConstants.TEXT_MUTED));
+        queueBtn.setPreferredSize(new Dimension(28, 28));
+        queueBtn.setToolTipText("Add to queue");
+        queueBtn.addMouseListener(new MouseAdapter() {
+            public void mouseEntered(MouseEvent ev) { queueBtn.setIcon(IconFactory.queueIcon(14, UIConstants.ACCENT)); }
+            public void mouseExited(MouseEvent ev) { queueBtn.setIcon(IconFactory.queueIcon(14, UIConstants.TEXT_MUTED)); }
+        });
+        queueBtn.addActionListener(e -> {
+            if (queueManager != null) queueManager.addToQueue(track);
+        });
+
         stats.add(playsLabel);
         stats.add(likesLabel);
         stats.add(addPlBtn);
+        stats.add(queueBtn);
 
         card.add(playBtn, BorderLayout.WEST);
         card.add(info, BorderLayout.CENTER);
@@ -251,6 +268,7 @@ public class HomePanel extends JPanel {
     }
 
     private void playTrack(Map<String, Object> track) {
+
         int trackId = JsonHelper.getInt(track, "id");
         String title = JsonHelper.getString(track, "title", "Untitled");
         String artist = JsonHelper.getString(track, "artist", "Unknown");

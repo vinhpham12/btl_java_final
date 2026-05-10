@@ -255,16 +255,19 @@ public class LoginPanel extends JPanel {
         ));
         field.setAlignmentX(Component.CENTER_ALIGNMENT);
 
-        // Placeholder
+        // Placeholder: dùng flag isPlaceholder thay vì so sánh text
         field.putClientProperty("placeholder", placeholder);
+        field.putClientProperty("isPlaceholder", true);
         field.setText(placeholder);
         field.setForeground(UIConstants.TEXT_MUTED);
         field.addFocusListener(new FocusAdapter() {
             @Override
             public void focusGained(FocusEvent e) {
-                if (field.getText().equals(placeholder)) {
+                Boolean isPlaceholder = (Boolean) field.getClientProperty("isPlaceholder");
+                if (Boolean.TRUE.equals(isPlaceholder)) {
                     field.setText("");
                     field.setForeground(UIConstants.TEXT_PRIMARY);
+                    field.putClientProperty("isPlaceholder", false);
                 }
             }
             @Override
@@ -272,6 +275,7 @@ public class LoginPanel extends JPanel {
                 if (field.getText().isEmpty()) {
                     field.setText(placeholder);
                     field.setForeground(UIConstants.TEXT_MUTED);
+                    field.putClientProperty("isPlaceholder", true);
                 }
             }
         });
