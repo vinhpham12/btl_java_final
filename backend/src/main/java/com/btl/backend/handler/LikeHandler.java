@@ -9,6 +9,9 @@ package com.btl.backend.handler;
  * @author ADMIN
  */
 import com.btl.backend.DAO.LikeDAO;
+import com.btl.backend.DAO.NotificationDAO;
+import com.btl.backend.DAO.TracksDAO;
+import com.btl.backend.model.Tracks;
 import com.btl.backend.util.*;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
@@ -18,6 +21,8 @@ import java.util.*;
 public class LikeHandler implements HttpHandler {
 
     private final LikeDAO likeDao = new LikeDAO();
+    private final NotificationDAO notifDao = new NotificationDAO();
+    private final TracksDAO trackDao = new TracksDAO();
 
     @Override
     public void handle(HttpExchange exchange) throws IOException {
@@ -41,6 +46,13 @@ public class LikeHandler implements HttpHandler {
 
             if ("POST".equals(method)) {
                 likeDao.like(userId, trackId);
+                // Tạo notification cho chủ track
+                Tracks track = trackDao.findById(trackId, userId);
+                if (track != null && track.getUserId() != userId) {
+                    notifDao.create(track.getUserId(), "like",
+                        "đã thích bài hát \"" + track.getTitle() + "\" của bạn",
+                        userId, trackId);
+                }
                 Map<String, Object> data = new LinkedHashMap<>();
                 data.put("liked", true);
                 data.put("likeCount", likeDao.getLikeCount(trackId));

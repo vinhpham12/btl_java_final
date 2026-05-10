@@ -11,6 +11,7 @@ package com.btl.frontend.ui;
 
 import com.btl.frontend.api.ApiClient;
 import com.btl.frontend.audio.AudioPlayer;
+import com.btl.frontend.audio.QueueManager;
 import com.btl.frontend.util.*;
 import javax.swing.*;
 import java.awt.*;
@@ -30,11 +31,11 @@ public class MainFrame extends JFrame {
 
     // Các thành phần cốt lõi
     private final AudioPlayer player = new AudioPlayer(); // Engine phát nhạc duy nhất
-    private PlayerBar playerBar;                          // Thanh điều khiển phát nhạc
-    private CardLayout contentLayout;                     // Quản lý việc chuyển đổi các màn hình
-    private JPanel contentPanel;                          // Panel chứa tất cả các màn hình con
-    private JPanel sidebar;                               // Thanh menu bên trái
-    private Map<String, Object> currentUser;              // Thông tin user đang đăng nhập
+    private PlayerBar playerBar; // Thanh điều khiển phát nhạc
+    private CardLayout contentLayout; // Quản lý việc chuyển đổi các màn hình
+    private JPanel contentPanel; // Panel chứa tất cả các màn hình con
+    private JPanel sidebar; // Thanh menu bên trái
+    private Map<String, Object> currentUser; // Thông tin user đang đăng nhập
 
     // Panels
     private HomePanel homePanel;
@@ -43,6 +44,11 @@ public class MainFrame extends JFrame {
     private SearchPanel searchPanel;
     private ProfilePanel profilePanel;
     private PlaylistPanel playlistPanel;
+    private HistoryPanel historyPanel;
+    private NotificationPanel notificationPanel;
+    private TrendingPanel trendingPanel;
+    private LocalMusicPanel localMusicPanel;
+    private QueueManager queueManager;
 
     // Active sidebar button tracking
     private JButton activeSidebarBtn = null;
@@ -80,6 +86,10 @@ public class MainFrame extends JFrame {
         playerBar = new PlayerBar(player);
         getContentPane().add(playerBar, BorderLayout.SOUTH);
 
+        // 1.5. Tạo QueueManager và kết nối với PlayerBar
+        queueManager = new QueueManager(player, playerBar);
+        playerBar.setQueueManager(queueManager);
+
         // 2. Vùng làm việc chính
         JPanel mainArea = new JPanel(new BorderLayout());
         mainArea.setBackground(UIConstants.BG_DARK);
@@ -96,23 +106,54 @@ public class MainFrame extends JFrame {
         // Initialize all panels
         homePanel = new HomePanel(player, playerBar, new HomePanel.HomeListener() {
             @Override
-            public void onTrackSelected(Map<String, Object> track) { navigateToTrack(track); }
+            public void onTrackSelected(Map<String, Object> track) {
+                navigateToTrack(track);
+            }
+
             @Override
-            public void onUserSelected(int userId) { navigateToProfile(userId); }
+            public void onUserSelected(int userId) {
+                navigateToProfile(userId);
+            }
         });
+        homePanel.setQueueManager(queueManager);
 
         trackPanel = new TrackPanel(player, playerBar);
+        trackPanel.setQueueManager(queueManager);
+        trackPanel.setCurrentUserId(JsonHelper.getInt(currentUser, "id"));
+        trackPanel.setDeleteListener(() -> {
+            // Sau khi xóa → quay về Home và reload
+            showCard("home");
+            homePanel.loadTracks("newest");
+        });
         uploadPanel = new UploadPanel();
 
         searchPanel = new SearchPanel(player, playerBar, new SearchPanel.SearchListener() {
             @Override
-            public void onTrackSelected(Map<String, Object> track) { navigateToTrack(track); }
+            public void onTrackSelected(Map<String, Object> track) {
+                navigateToTrack(track);
+            }
+
             @Override
-            public void onUserSelected(int userId) { navigateToProfile(userId); }
+            public void onUserSelected(int userId) {
+                navigateToProfile(userId);
+            }
         });
 
         profilePanel = new ProfilePanel(player, playerBar, track -> navigateToTrack(track));
         playlistPanel = new PlaylistPanel(player, playerBar);
+
+        historyPanel = new HistoryPanel(player, playerBar);
+        historyPanel.setQueueManager(queueManager);
+
+        notificationPanel = new NotificationPanel(userId -> {
+            navigateToProfile(userId);
+        });
+
+        trendingPanel = new TrendingPanel(player, playerBar, track -> navigateToTrack(track));
+        trendingPanel.setQueueManager(queueManager);
+
+        localMusicPanel = new LocalMusicPanel(player, playerBar);
+        localMusicPanel.setQueueManager(queueManager);
 
         // Đăng ký các thẻ (Card) vào hệ thống
         contentPanel.add(homePanel, "home");
@@ -121,6 +162,10 @@ public class MainFrame extends JFrame {
         contentPanel.add(searchPanel, "search");
         contentPanel.add(profilePanel, "profile");
         contentPanel.add(playlistPanel, "playlist");
+        contentPanel.add(historyPanel, "history");
+        contentPanel.add(notificationPanel, "notifications");
+        contentPanel.add(trendingPanel, "trending");
+        contentPanel.add(localMusicPanel, "localmusic");
 
         mainArea.add(contentPanel, BorderLayout.CENTER);
         getContentPane().add(mainArea, BorderLayout.CENTER);
@@ -130,6 +175,11 @@ public class MainFrame extends JFrame {
 
         // Tải dữ liệu ban đầu cho trang chủ
         homePanel.loadTracks("newest");
+
+        // Polling notification badge mỗi 30 giây
+        javax.swing.Timer notifTimer = new javax.swing.Timer(30000, e -> updateNotifBadge());
+        notifTimer.setInitialDelay(2000);
+        notifTimer.start();
     }
 
     private JPanel createSidebar() {
@@ -147,7 +197,8 @@ public class MainFrame extends JFrame {
                 // Bật khử răng cưa cho chữ mịn hơn
                 g2.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
                 // Tạo dải màu gradient từ Xanh trời sang Vàng cát
-                GradientPaint gp = new GradientPaint(0, 0, UIConstants.GRADIENT_START, getWidth(), 0, UIConstants.GRADIENT_END);
+                GradientPaint gp = new GradientPaint(0, 0, UIConstants.GRADIENT_START, getWidth(), 0,
+                        UIConstants.GRADIENT_END);
                 g2.setPaint(gp);
                 g2.setFont(getFont());
                 FontMetrics fm = g2.getFontMetrics();
@@ -172,11 +223,18 @@ public class MainFrame extends JFrame {
         sb.add(Box.createVerticalStrut(8));
 
         JButton homeBtn = createSidebarButton("Home", true);
-        homeBtn.addActionListener(e -> { setActive(homeBtn); showCard("home"); homePanel.loadTracks("newest"); });
+        homeBtn.addActionListener(e -> {
+            setActive(homeBtn);
+            showCard("home");
+            homePanel.loadTracks("newest");
+        });
         sb.add(homeBtn);
 
         JButton searchBtn = createSidebarButton("Search", false);
-        searchBtn.addActionListener(e -> { setActive(searchBtn); showCard("search"); });
+        searchBtn.addActionListener(e -> {
+            setActive(searchBtn);
+            showCard("search");
+        });
         sb.add(searchBtn);
 
         sb.add(Box.createVerticalStrut(16));
@@ -187,12 +245,39 @@ public class MainFrame extends JFrame {
         sb.add(libLabel);
         sb.add(Box.createVerticalStrut(8));
 
+        JButton trendingBtn = createSidebarButton("Trending", false);
+        trendingBtn.addActionListener(e -> {
+            setActive(trendingBtn);
+            showCard("trending");
+            trendingPanel.loadTrending("week");
+        });
+        sb.add(trendingBtn);
+
+        JButton historyBtn = createSidebarButton("History", false);
+        historyBtn.addActionListener(e -> {
+            setActive(historyBtn);
+            showCard("history");
+            historyPanel.loadHistory();
+        });
+        sb.add(historyBtn);
+
+        JButton localBtn = createSidebarButton("Local Music", false);
+        localBtn.addActionListener(e -> { setActive(localBtn); showCard("localmusic"); localMusicPanel.onShow(); });
+        sb.add(localBtn);
+
         JButton uploadBtn = createSidebarButton("Upload", false);
-        uploadBtn.addActionListener(e -> { setActive(uploadBtn); showCard("upload"); });
+        uploadBtn.addActionListener(e -> {
+            setActive(uploadBtn);
+            showCard("upload");
+        });
         sb.add(uploadBtn);
 
         JButton playlistBtn = createSidebarButton("Playlists", false);
-        playlistBtn.addActionListener(e -> { setActive(playlistBtn); showCard("playlist"); playlistPanel.loadPlaylists(); });
+        playlistBtn.addActionListener(e -> {
+            setActive(playlistBtn);
+            showCard("playlist");
+            playlistPanel.loadPlaylists();
+        });
         sb.add(playlistBtn);
 
         JButton profileBtn = createSidebarButton("My Profile", false);
@@ -204,6 +289,22 @@ public class MainFrame extends JFrame {
             }
         });
         sb.add(profileBtn);
+
+        sb.add(Box.createVerticalStrut(16));
+        JLabel socialLabel = new JLabel("   SOCIAL");
+        socialLabel.setFont(UIConstants.FONT_TINY);
+        socialLabel.setForeground(UIConstants.TEXT_MUTED);
+        socialLabel.setAlignmentX(Component.LEFT_ALIGNMENT);
+        sb.add(socialLabel);
+        sb.add(Box.createVerticalStrut(8));
+
+        notifSidebarBtn = createSidebarButton("Notifications", false);
+        notifSidebarBtn.addActionListener(e -> {
+            setActive(notifSidebarBtn);
+            showCard("notifications");
+            notificationPanel.loadNotifications();
+        });
+        sb.add(notifSidebarBtn);
 
         sb.add(Box.createVerticalGlue());
 
@@ -229,10 +330,11 @@ public class MainFrame extends JFrame {
             protected void paintComponent(Graphics g) {
                 Graphics2D g2 = (Graphics2D) g.create();
                 g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
-                
+
                 if (this == activeSidebarBtn) {
                     // Trạng thái đang chọn: Nền màu primary trong suốt (alpha 30)
-                    g2.setColor(new Color(UIConstants.PRIMARY.getRed(), UIConstants.PRIMARY.getGreen(), UIConstants.PRIMARY.getBlue(), 30));
+                    g2.setColor(new Color(UIConstants.PRIMARY.getRed(), UIConstants.PRIMARY.getGreen(),
+                            UIConstants.PRIMARY.getBlue(), 30));
                     g2.fill(new RoundRectangle2D.Float(8, 0, getWidth() - 16, getHeight(), 8, 8));
                     // Thanh đánh dấu (Left accent) màu primary đậm
                     g2.setColor(UIConstants.PRIMARY);
@@ -242,7 +344,7 @@ public class MainFrame extends JFrame {
                     g2.setColor(UIConstants.BG_HOVER);
                     g2.fill(new RoundRectangle2D.Float(8, 0, getWidth() - 16, getHeight(), 8, 8));
                 }
-                
+
                 // Vẽ chữ
                 g2.setColor(this == activeSidebarBtn ? UIConstants.PRIMARY : getForeground());
                 g2.setFont(getFont());
@@ -282,5 +384,16 @@ public class MainFrame extends JFrame {
         profilePanel.loadProfile(userId);
         showCard("profile");
     }
-}
 
+    private JButton notifSidebarBtn;
+
+    private void updateNotifBadge() {
+        if (notificationPanel != null && ApiClient.isAuthenticated()) {
+            notificationPanel.fetchUnreadCount(count -> {
+                if (notifSidebarBtn != null) {
+                    notifSidebarBtn.setText(count > 0 ? "Notifications (" + count + ")" : "Notifications");
+                }
+            });
+        }
+    }
+}

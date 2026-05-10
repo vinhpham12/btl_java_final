@@ -13,12 +13,12 @@ import com.btl.backend.util.DBConnection;
 import com.btl.backend.util.FileStorageManager;
 import com.sun.net.httpserver.HttpServer;
 import java.net.InetSocketAddress;
+import java.util.regex.Pattern;
 
 /**
  * Điểm khởi đầu của TAH Backend Server.
  *
  * Sử dụng com.sun.net.httpserver.HttpServer - HTTP server tích hợp sẵn trong JDK.
- * Không cần Spring Boot, Tomcat hay bất kỳ framework nào.
  *
  * Luồng khởi động:
  * 1. Khởi tạo DB (connection pool + tạo bảng)
@@ -47,12 +47,15 @@ public class MusicServer {
             server.createContext("/api/auth", new AuthHandler());         // Đăng ký/nhập/xuất
             server.createContext("/api/tracks", new TrackRequestRouter()); // Bài hát (cần router phụ)
             server.createContext("/api/playlists", new PlaylistHandler()); // Playlist
-            server.createContext("/api/users", new UserHandler());        // Profile/Follow
+            server.createContext("/api/users", new UserHandler());        // Profile/Follow/Reposts
             server.createContext("/api/search", new SearchHandler());     // Tìm kiếm
             server.createContext("/api/comments", new CommentHandler());  // Bình luận
+            server.createContext("/api/history", new HistoryHandler());   // Lịch sử nghe
+            server.createContext("/api/notifications", new NotificationHandler()); // Thông báo
 
-            // Bước 3: Tạo thread pool 10 threads để xử lý đồng thời
-            server.setExecutor(java.util.concurrent.Executors.newFixedThreadPool(10));
+            // Bước 3: Tạo thread pool 50 threads để xử lý đồng thời
+            // 10 threads quá ít cho I/O-bound server (stream file lớn block thread lâu)
+            server.setExecutor(java.util.concurrent.Executors.newFixedThreadPool(50));
 
             // Bước 4: Khởi động server
             server.start();
@@ -92,18 +95,28 @@ public class MusicServer {
         private final StreamHandler streamHandler = new StreamHandler();
         private final LikeHandler likeHandler = new LikeHandler();
         private final CommentHandler commentHandler = new CommentHandler();
+        private final RepostHandler repostHandler = new RepostHandler();
+
+        // Pre-compiled regex patterns — tránh compile lại mỗi request
+        private static final Pattern STREAM_PATTERN = Pattern.compile("/api/tracks/\\d+/stream");
+        private static final Pattern LIKE_PATTERN = Pattern.compile("/api/tracks/\\d+/like");
+        private static final Pattern COMMENT_PATTERN = Pattern.compile("/api/tracks/\\d+/comments");
+        private static final Pattern PLAY_PATTERN = Pattern.compile("/api/tracks/\\d+/play");
+        private static final Pattern REPOST_PATTERN = Pattern.compile("/api/tracks/\\d+/repost");
 
         @Override
         public void handle(com.sun.net.httpserver.HttpExchange exchange) throws java.io.IOException {
             String path = exchange.getRequestURI().getPath();
 
-            // Dùng regex để match URL pattern: \\d+ = 1 hoặc nhiều chữ số
-            if (path.matches("/api/tracks/\\d+/stream")) {
+            // Dùng pre-compiled regex thay vì String.matches() (compile mỗi lần)
+            if (STREAM_PATTERN.matcher(path).matches()) {
                 streamHandler.handle(exchange);       // Stream file nhạc
-            } else if (path.matches("/api/tracks/\\d+/like")) {
+            } else if (LIKE_PATTERN.matcher(path).matches()) {
                 likeHandler.handle(exchange);         // Like/Unlike
-            } else if (path.matches("/api/tracks/\\d+/comments")) {
+            } else if (COMMENT_PATTERN.matcher(path).matches()) {
                 commentHandler.handle(exchange);      // Bình luận
+            } else if (REPOST_PATTERN.matcher(path).matches()) {
+                repostHandler.handle(exchange);       // Repost/Unrepost
             } else {
                 trackHandler.handle(exchange);        // CRUD track thông thường
             }

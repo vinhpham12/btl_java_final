@@ -36,8 +36,9 @@ public class CommentsDAO {
             ps.setString(3, content);
             ps.setInt(4, timestampSeconds);
             ps.executeUpdate();
-            ResultSet rs = ps.getGeneratedKeys();
-            if (rs.next()) return findById(rs.getInt(1));//dua id comment vua tao vao de lay thong tin tra ve frontend hien thi 
+            try (ResultSet rs = ps.getGeneratedKeys()) {
+                if (rs.next()) return findById(rs.getInt(1));//dua id comment vua tao vao de lay thong tin tra ve frontend hien thi
+            }
         } catch (SQLException e) {
             System.err.println("[CommentDao] create error: " + e.getMessage());
         } finally {
@@ -51,8 +52,9 @@ public class CommentsDAO {
         Connection conn = DBConnection.getConnection();
         try (PreparedStatement ps = conn.prepareStatement(sql)) {
             ps.setInt(1, id);
-            ResultSet rs = ps.executeQuery();
-            if (rs.next()) return mapRow(rs);
+            try (ResultSet rs = ps.executeQuery()) {
+                if (rs.next()) return mapRow(rs);
+            }
         } catch (SQLException e) {
             System.err.println("[CommentDao] findById error: " + e.getMessage());
         } finally {
@@ -68,8 +70,9 @@ public class CommentsDAO {
         Connection conn = DBConnection.getConnection();
         try (PreparedStatement ps = conn.prepareStatement(sql)) {
             ps.setInt(1, trackId);
-            ResultSet rs = ps.executeQuery();
-            while (rs.next()) comments.add(mapRow(rs));
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) comments.add(mapRow(rs));
+            }
         } catch (SQLException e) {
             System.err.println("[CommentDao] findByTrackId error: " + e.getMessage());
         } finally {

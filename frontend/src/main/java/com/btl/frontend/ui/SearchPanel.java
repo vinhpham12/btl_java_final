@@ -239,22 +239,7 @@ public class SearchPanel extends JPanel {
     }
 
     private void playTrack(Map<String, Object> track) {
-        int trackId = JsonHelper.getInt(track, "id");
-        String title = JsonHelper.getString(track, "title", "Untitled");
-        String artist = JsonHelper.getString(track, "artist", "Unknown");
-        new Thread(() -> {
-            try {
-                ApiClient.post("/tracks/" + trackId + "/play", new HashMap<>());
-                byte[] audioData = ApiClient.downloadBytes("/tracks/" + trackId + "/stream");
-                if (audioData != null) {
-                    SwingUtilities.invokeLater(() -> {
-                        player.load(audioData);
-                        player.play();
-                        playerBar.setTrackInfo(title, artist);
-                    });
-                }
-            } catch (Exception ex) { System.err.println("Play error: " + ex.getMessage()); }
-        }).start();
+        TrackPlayerUtil.playTrack(track, player, playerBar);
     }
 }
 

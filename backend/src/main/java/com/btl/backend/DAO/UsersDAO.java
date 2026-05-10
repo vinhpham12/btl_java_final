@@ -40,15 +40,11 @@ public class UsersDAO {
             ps.setString(2, passwordHash);
             ps.setString(3,displayName);
             ps.executeUpdate();
-            ResultSet rs= ps.getGeneratedKeys();
-            if(rs.next()){
-                return findById(rs.getInt(1));// lay id vua duoc tao ra de dua vao findbyid truy van csdl lay 1 user hoan chinh
-                
+            try(ResultSet rs= ps.getGeneratedKeys()) {
+                if(rs.next()){
+                    return findById(rs.getInt(1));// lay id vua duoc tao ra de dua vao findbyid truy van csdl lay 1 user hoan chinh
+                }
             }
-            
-        }
-        catch(SQLException e){
-            System.err.println("[UserDao] create error: " + e.getMessage());
         }finally{
             DBConnection.releaseConnection(conn); //sau khi dung xong tra ve cho pool
         }
@@ -67,13 +63,14 @@ public class UsersDAO {
         Connection conn = DBConnection.getConnection();
         try (PreparedStatement ps = conn.prepareStatement(sql)) {
             ps.setInt(1, id);
-            ResultSet rs = ps.executeQuery();
-            if (rs.next()) {
-                Users user = mapRow(rs);
-                user.setTrackCount(rs.getInt("track_count"));
-                user.setFollowerCount(rs.getInt("follower_count"));
-                user.setFollowingCount(rs.getInt("following_count"));
-                return user;
+            try (ResultSet rs = ps.executeQuery()) {
+                if (rs.next()) {
+                    Users user = mapRow(rs);
+                    user.setTrackCount(rs.getInt("track_count"));
+                    user.setFollowerCount(rs.getInt("follower_count"));
+                    user.setFollowingCount(rs.getInt("following_count"));
+                    return user;
+                }
             }
         } catch (SQLException e) {
             System.err.println("[UserDao] findById error: " + e.getMessage());
@@ -89,8 +86,9 @@ public class UsersDAO {
         Connection conn = DBConnection.getConnection();
         try (PreparedStatement ps = conn.prepareStatement(sql)) {
             ps.setString(1, username);
-            ResultSet rs = ps.executeQuery();
-            if (rs.next()) return mapRow(rs);
+            try (ResultSet rs = ps.executeQuery()) {
+                if (rs.next()) return mapRow(rs);
+            }
         } catch (SQLException e) {
             System.err.println("[UserDao] findByUsername error: " + e.getMessage());
         } finally {
@@ -141,8 +139,9 @@ public class UsersDAO {
             String pattern = "%" + query + "%";
             ps.setString(1, pattern);
             ps.setString(2, pattern);
-            ResultSet rs = ps.executeQuery();
-            while (rs.next()) users.add(mapRow(rs));
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) users.add(mapRow(rs));
+            }
         } catch (SQLException e) {
             System.err.println("[UserDao] search error: " + e.getMessage());
         } finally {
@@ -188,7 +187,9 @@ public class UsersDAO {
         try (PreparedStatement ps = conn.prepareStatement(sql)) {
             ps.setInt(1, followerId);
             ps.setInt(2, followingId);
-            return ps.executeQuery().next();
+            try (ResultSet rs = ps.executeQuery()) {
+                return rs.next();
+            }
         } catch (SQLException e) {
             System.err.println("[UserDao] isFollowing error: " + e.getMessage());
         } finally {

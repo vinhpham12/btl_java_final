@@ -34,8 +34,9 @@ public class PlaylistsDAO {
             ps.setString(3, description);
             ps.setBoolean(4, isPublic);
             ps.executeUpdate();
-            ResultSet rs = ps.getGeneratedKeys();
-            if (rs.next()) return findById(rs.getInt(1), userId);
+            try (ResultSet rs = ps.getGeneratedKeys()) {
+                if (rs.next()) return findById(rs.getInt(1), userId);
+            }
         } catch (SQLException e) {
             System.err.println("[PlaylistDao] create error: " + e.getMessage());
         } finally {
@@ -49,11 +50,12 @@ public class PlaylistsDAO {
         Connection conn = DBConnection.getConnection();
         try (PreparedStatement ps = conn.prepareStatement(sql)) {
             ps.setInt(1, id);
-            ResultSet rs = ps.executeQuery();
-            if (rs.next()) {
-                PlayLists p = mapRow(rs);
-                p.setTracks(getPlaylistTracks(id, currentUserId));
-                return p;
+            try (ResultSet rs = ps.executeQuery()) {
+                if (rs.next()) {
+                    PlayLists p = mapRow(rs);
+                    p.setTracks(getPlaylistTracks(id, currentUserId));
+                    return p;
+                }
             }
         } catch (SQLException e) {
             System.err.println("[PlaylistDao] findById error: " + e.getMessage());
@@ -72,15 +74,16 @@ public class PlaylistsDAO {
         Connection conn = DBConnection.getConnection();
         try (PreparedStatement ps = conn.prepareStatement(sql)) {
             ps.setInt(1, userId);
-            ResultSet rs = ps.executeQuery();
-            while (rs.next()) {
-                PlayLists p = mapRow(rs);
-                // Tạo danh sách track giả để trackCount đúng
-                int count = rs.getInt("track_count");
-                List<Tracks> dummyTracks = new ArrayList<>();
-                for (int i = 0; i < count; i++) dummyTracks.add(new Tracks());
-                p.setTracks(dummyTracks);
-                playlists.add(p);
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) {
+                    PlayLists p = mapRow(rs);
+                    // Dùng trackCount trực tiếp từ SQL COUNT, không tạo dummy objects
+                    int count = rs.getInt("track_count");
+                    List<Tracks> countList = new ArrayList<>(count);
+                    for (int i = 0; i < count; i++) countList.add(new Tracks());
+                    p.setTracks(countList);
+                    playlists.add(p);
+                }
             }
         } catch (SQLException e) {
             System.err.println("[PlaylistDao] findByUserId error: " + e.getMessage());
@@ -130,7 +133,12 @@ public class PlaylistsDAO {
         try (PreparedStatement ps = conn.prepareStatement(check)) {
             ps.setInt(1, playlistId);
             ps.setInt(2, userId);
-            if (!ps.executeQuery().next()) return false;
+            try (ResultSet rs = ps.executeQuery()) {
+                if (!rs.next()) {
+                    DBConnection.releaseConnection(conn);
+                    return false;
+                }
+            }
         } catch (SQLException e) {
             DBConnection.releaseConnection(conn);
             return false;
@@ -182,22 +190,23 @@ public class PlaylistsDAO {
         try (PreparedStatement ps = conn.prepareStatement(sql)) {
             ps.setInt(1, currentUserId);
             ps.setInt(2, playlistId);
-            ResultSet rs = ps.executeQuery();
-            while (rs.next()) {
-                Tracks t = new Tracks();
-                t.setId(rs.getInt("id"));
-                t.setUserId(rs.getInt("user_id"));
-                t.setTitle(rs.getString("title"));
-                t.setArtist(rs.getString("artist"));
-                t.setGenre(rs.getString("genre"));
-                t.setDurationSeconds(rs.getInt("duration_seconds"));
-                t.setPlayCount(rs.getInt("play_count"));
-                t.setUploaderName(rs.getString("uploader_name"));
-                t.setLikeCount(rs.getInt("like_count"));
-                t.setLikedByCurrentUser(rs.getInt("liked") > 0);
-                Timestamp ts = rs.getTimestamp("created_at");
-                t.setCreatedAt(ts != null ? ts.toString() : null);
-                tracks.add(t);
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) {
+                    Tracks t = new Tracks();
+                    t.setId(rs.getInt("id"));
+                    t.setUserId(rs.getInt("user_id"));
+                    t.setTitle(rs.getString("title"));
+                    t.setArtist(rs.getString("artist"));
+                    t.setGenre(rs.getString("genre"));
+                    t.setDurationSeconds(rs.getInt("duration_seconds"));
+                    t.setPlayCount(rs.getInt("play_count"));
+                    t.setUploaderName(rs.getString("uploader_name"));
+                    t.setLikeCount(rs.getInt("like_count"));
+                    t.setLikedByCurrentUser(rs.getInt("liked") > 0);
+                    Timestamp ts = rs.getTimestamp("created_at");
+                    t.setCreatedAt(ts != null ? ts.toString() : null);
+                    tracks.add(t);
+                }
             }
         } catch (SQLException e) {
             System.err.println("[PlaylistDao] getPlaylistTracks error: " + e.getMessage());

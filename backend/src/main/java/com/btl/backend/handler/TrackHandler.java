@@ -32,7 +32,9 @@ public class TrackHandler implements HttpHandler {
         String method = exchange.getRequestMethod();
 
         try {
-            if ("GET".equals(method) && path.equals("/api/tracks")) {
+            if ("GET".equals(method) && path.equals("/api/tracks/trending")) {
+                handleTrending(exchange);
+            } else if ("GET".equals(method) && path.equals("/api/tracks")) {
                 handleList(exchange);
             } else if ("GET".equals(method) && path.matches("/api/tracks/\\d+")) {
                 handleGetById(exchange, path);
@@ -155,6 +157,17 @@ public class TrackHandler implements HttpHandler {
         int slash = idStr.indexOf('/');
         if (slash != -1) idStr = idStr.substring(0, slash);
         return Integer.parseInt(idStr);
+    }
+
+    private void handleTrending(HttpExchange exchange) throws IOException {
+        int userId = HttpHelper.getAuthUserId(exchange);
+        Map<String, String> params = HttpHelper.parseQueryParams(exchange.getRequestURI().getQuery());
+        String period = params.getOrDefault("period", "all");
+        int limit = 20;
+        try { limit = Integer.parseInt(params.getOrDefault("limit", "20")); } catch (Exception e) {}
+        List<Tracks> tracks = trackDao.findTrending(userId, period, limit);
+        List<Map<String, Object>> jsonList = tracks.stream().map(Tracks::toJson).collect(Collectors.toList());
+        HttpHelper.sendJsonResponse(exchange, 200, JsonHelper.listResponse(jsonList));
     }
 
     private int calculateWavDuration(byte[] data) {

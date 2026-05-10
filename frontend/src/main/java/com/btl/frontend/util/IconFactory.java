@@ -239,6 +239,170 @@ public class IconFactory {
         };
     }
 
+    // ======== SHARE ↗ (chia sẻ) ========
+    public static Icon shareIcon(int size, Color color) {
+        return new Icon() {
+            public void paintIcon(Component c, Graphics g, int x, int y) {
+                Graphics2D g2 = (Graphics2D) g.create();
+                g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+                g2.setColor(color);
+                g2.setStroke(new BasicStroke(1.8f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+                int cx = x + size / 2; int cy = y + size / 2;
+                // Mũi tên lên
+                g2.drawLine(cx, y + size / 5, cx, y + size * 3 / 5);
+                g2.drawLine(cx, y + size / 5, cx - size / 5, y + size * 2 / 5);
+                g2.drawLine(cx, y + size / 5, cx + size / 5, y + size * 2 / 5);
+                // Khung hộp
+                g2.drawLine(x + size / 4, y + size * 2 / 5, x + size / 4, y + size * 4 / 5);
+                g2.drawLine(x + size * 3 / 4, y + size * 2 / 5, x + size * 3 / 4, y + size * 4 / 5);
+                g2.drawLine(x + size / 4, y + size * 4 / 5, x + size * 3 / 4, y + size * 4 / 5);
+                g2.dispose();
+            }
+            public int getIconWidth() { return size; }
+            public int getIconHeight() { return size; }
+        };
+    }
+
+    // ======== REPOST ♻ (đăng lại) ========
+    public static Icon repostIcon(int size, Color color) {
+        return new Icon() {
+            public void paintIcon(Component c, Graphics g, int x, int y) {
+                Graphics2D g2 = (Graphics2D) g.create();
+                g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+                g2.setColor(color);
+                g2.setStroke(new BasicStroke(1.8f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+                // Mũi tên phải (trên)
+                int ax = x + size * 3 / 4; int ay = y + size / 3;
+                g2.drawLine(x + size / 4, ay, ax, ay);
+                g2.drawLine(ax - size / 6, ay - size / 8, ax, ay);
+                g2.drawLine(ax - size / 6, ay + size / 8, ax, ay);
+                // Mũi tên trái (dưới)
+                int bx = x + size / 4; int by = y + size * 2 / 3;
+                g2.drawLine(x + size * 3 / 4, by, bx, by);
+                g2.drawLine(bx + size / 6, by - size / 8, bx, by);
+                g2.drawLine(bx + size / 6, by + size / 8, bx, by);
+                g2.dispose();
+            }
+            public int getIconWidth() { return size; }
+            public int getIconHeight() { return size; }
+        };
+    }
+
+    // ======== DOWNLOAD ⬇ (tải về) ========
+    public static Icon downloadIcon(int size, Color color) {
+        return new Icon() {
+            public void paintIcon(Component c, Graphics g, int x, int y) {
+                Graphics2D g2 = (Graphics2D) g.create();
+                g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+                g2.setColor(color);
+                g2.setStroke(new BasicStroke(2f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+                int cx = x + size / 2;
+                // Mũi tên xuống
+                g2.drawLine(cx, y + size / 5, cx, y + size * 3 / 5);
+                g2.drawLine(cx - size / 5, y + size * 2 / 5, cx, y + size * 3 / 5);
+                g2.drawLine(cx + size / 5, y + size * 2 / 5, cx, y + size * 3 / 5);
+                // Đường nền
+                g2.drawLine(x + size / 4, y + size * 4 / 5, x + size * 3 / 4, y + size * 4 / 5);
+                g2.dispose();
+            }
+            public int getIconWidth() { return size; }
+            public int getIconHeight() { return size; }
+        };
+    }
+
+    // ======== BELL 🔔 (thông báo) ========
+    public static Icon bellIcon(int size, Color color) {
+        return new Icon() {
+            public void paintIcon(Component c, Graphics g, int x, int y) {
+                Graphics2D g2 = (Graphics2D) g.create();
+                g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+                g2.setColor(color);
+                g2.setStroke(new BasicStroke(1.5f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+                int cx = x + size / 2;
+                // Thân chuông
+                g2.drawArc(x + size / 5, y + size / 5, size * 3 / 5, size * 3 / 5, 0, 180);
+                g2.drawLine(x + size / 5, y + size / 2, x + size / 5, y + size * 7 / 10);
+                g2.drawLine(x + size * 4 / 5, y + size / 2, x + size * 4 / 5, y + size * 7 / 10);
+                g2.drawLine(x + size / 7, y + size * 7 / 10, x + size * 6 / 7, y + size * 7 / 10);
+                // Quả lắc
+                g2.fillOval(cx - size / 12, y + size * 7 / 10, size / 6, size / 6);
+                g2.dispose();
+            }
+            public int getIconWidth() { return size; }
+            public int getIconHeight() { return size; }
+        };
+    }
+
+    // ======== QUEUE ☰+ (hàng đợi) ========
+    public static Icon queueIcon(int size, Color color) {
+        return new Icon() {
+            public void paintIcon(Component c, Graphics g, int x, int y) {
+                Graphics2D g2 = (Graphics2D) g.create();
+                g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+                g2.setColor(color);
+                g2.setStroke(new BasicStroke(2f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+                int lx = x + size / 5; int rx = x + size * 3 / 5;
+                // 3 đường ngang
+                g2.drawLine(lx, y + size / 4, rx, y + size / 4);
+                g2.drawLine(lx, y + size / 2, rx, y + size / 2);
+                g2.drawLine(lx, y + size * 3 / 4, rx, y + size * 3 / 4);
+                // Dấu +
+                int px = x + size * 4 / 5; int py = y + size / 2;
+                int pr = size / 7;
+                g2.drawLine(px - pr, py, px + pr, py);
+                g2.drawLine(px, py - pr, px, py + pr);
+                g2.dispose();
+            }
+            public int getIconWidth() { return size; }
+            public int getIconHeight() { return size; }
+        };
+    }
+
+    // ======== TRENDING 🔥 (xu hướng) ========
+    public static Icon trendingIcon(int size, Color color) {
+        return new Icon() {
+            public void paintIcon(Component c, Graphics g, int x, int y) {
+                Graphics2D g2 = (Graphics2D) g.create();
+                g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+                g2.setColor(color);
+                g2.setStroke(new BasicStroke(2f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+                // Đồ thị đi lên
+                g2.drawLine(x + size / 6, y + size * 4 / 5, x + size * 2 / 5, y + size / 2);
+                g2.drawLine(x + size * 2 / 5, y + size / 2, x + size * 3 / 5, y + size * 3 / 5);
+                g2.drawLine(x + size * 3 / 5, y + size * 3 / 5, x + size * 5 / 6, y + size / 5);
+                // Mũi tên ở đỉnh
+                g2.drawLine(x + size * 5 / 6, y + size / 5, x + size * 5 / 6 - size / 6, y + size / 5);
+                g2.drawLine(x + size * 5 / 6, y + size / 5, x + size * 5 / 6, y + size / 5 + size / 6);
+                g2.dispose();
+            }
+            public int getIconWidth() { return size; }
+            public int getIconHeight() { return size; }
+        };
+    }
+
+    // ======== HISTORY 🕐 (lịch sử) ========
+    public static Icon historyIcon(int size, Color color) {
+        return new Icon() {
+            public void paintIcon(Component c, Graphics g, int x, int y) {
+                Graphics2D g2 = (Graphics2D) g.create();
+                g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+                g2.setColor(color);
+                g2.setStroke(new BasicStroke(1.8f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+                int cx = x + size / 2; int cy = y + size / 2;
+                int r = size * 2 / 5;
+                // Vòng tròn đồng hồ
+                g2.drawOval(cx - r, cy - r, r * 2, r * 2);
+                // Kim giờ
+                g2.drawLine(cx, cy, cx, cy - r * 2 / 3);
+                // Kim phút
+                g2.drawLine(cx, cy, cx + r / 2, cy);
+                g2.dispose();
+            }
+            public int getIconWidth() { return size; }
+            public int getIconHeight() { return size; }
+        };
+    }
+
     // ======== Tạo JButton với Icon (không có text) ========
     public static JButton iconButton(Icon icon) {
         JButton btn = new JButton(icon);

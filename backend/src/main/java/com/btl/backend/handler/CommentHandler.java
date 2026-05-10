@@ -9,7 +9,10 @@ package com.btl.backend.handler;
  * @author ADMIN
  */
 import com.btl.backend.DAO.CommentsDAO;
+import com.btl.backend.DAO.NotificationDAO;
+import com.btl.backend.DAO.TracksDAO;
 import com.btl.backend.model.Comments;
+import com.btl.backend.model.Tracks;
 import com.btl.backend.util.*;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
@@ -20,6 +23,8 @@ import java.util.stream.Collectors;
 public class CommentHandler implements HttpHandler {
 
     private final CommentsDAO commentDao = new CommentsDAO();
+    private final NotificationDAO notifDao = new NotificationDAO();
+    private final TracksDAO trackDao = new TracksDAO();
 
     @Override
     public void handle(HttpExchange exchange) throws IOException {
@@ -58,6 +63,13 @@ public class CommentHandler implements HttpHandler {
 
                     Comments comment = commentDao.create(userId, trackId, content, timestamp);
                     if (comment != null) {
+                        // Tạo notification cho chủ track
+                        Tracks track = trackDao.findById(trackId, userId);
+                        if (track != null && track.getUserId() != userId) {
+                            notifDao.create(track.getUserId(), "comment",
+                                "đã bình luận vào bài hát \"" + track.getTitle() + "\"",
+                                userId, trackId);
+                        }
                         HttpHelper.sendJsonResponse(exchange, 201, JsonHelper.dataResponse(comment.toJson()));
                     } else {
                         HttpHelper.sendJsonResponse(exchange, 500, JsonHelper.errorResponse("Failed to create comment"));

@@ -424,25 +424,7 @@ public class PlaylistPanel extends JPanel {
      * Phát 1 track từ playlist.
      */
     private void playTrack(Map<String, Object> track) {
-        int trackId = JsonHelper.getInt(track, "id");
-        String title = JsonHelper.getString(track, "title", "Untitled");
-        String artist = JsonHelper.getString(track, "artist", "Unknown");
-
-        new Thread(() -> {
-            try {
-                ApiClient.post("/tracks/" + trackId + "/play", new HashMap<>());
-                byte[] audioData = ApiClient.downloadBytes("/tracks/" + trackId + "/stream");
-                if (audioData != null) {
-                    SwingUtilities.invokeLater(() -> {
-                        player.load(audioData);
-                        player.play();
-                        playerBar.setTrackInfo(title, artist);
-                    });
-                }
-            } catch (Exception ex) {
-                System.err.println("Error playing track: " + ex.getMessage());
-            }
-        }).start();
+        TrackPlayerUtil.playTrack(track, player, playerBar);
     }
 
     /**

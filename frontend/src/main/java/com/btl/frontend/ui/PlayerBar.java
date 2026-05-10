@@ -10,6 +10,7 @@ package com.btl.frontend.ui;
  */
 
 import com.btl.frontend.audio.AudioPlayer;
+import com.btl.frontend.audio.QueueManager;
 import com.btl.frontend.util.UIConstants;
 import com.btl.frontend.util.IconFactory;
 import javax.swing.*;
@@ -24,6 +25,7 @@ import java.awt.geom.RoundRectangle2D;
 public class PlayerBar extends JPanel {
 
     private final AudioPlayer player;
+    private QueueManager queueManager;
     private JLabel trackTitle;
     private JLabel trackArtist;
     private JButton playPauseBtn;
@@ -99,6 +101,8 @@ public class PlayerBar extends JPanel {
         });
 
         playPauseBtn.addActionListener(e -> player.togglePlayPause());
+        prevBtn.addActionListener(e -> { if (queueManager != null) queueManager.playPrevious(); });
+        nextBtn.addActionListener(e -> { if (queueManager != null) queueManager.playNext(); });
 
         controls.add(prevBtn);
         controls.add(playPauseBtn);
@@ -206,6 +210,9 @@ public class PlayerBar extends JPanel {
         trackArtist.setText(artist);
         totalTimeLabel.setText(UIConstants.formatDuration(player.getTotalSeconds()));
     }
+
+    /** Kết nối QueueManager để Prev/Next hoạt động */
+    public void setQueueManager(QueueManager qm) { this.queueManager = qm; }
 
 
 
