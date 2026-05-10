@@ -42,6 +42,9 @@ public class PlaylistPanel extends JPanel {
     // Lưu thông tin playlist đang xem chi tiết
     private int currentDetailPlaylistId = -1;
 
+    // Lưu danh sách track của playlist đang xem để hỗ trợ Next/Prev
+    private List<Map<String, Object>> currentDetailTracks = new ArrayList<>();
+
     // Static reference để có thể refresh từ dialog
     private static PlaylistPanel activeInstance = null;
 
@@ -309,6 +312,8 @@ public class PlaylistPanel extends JPanel {
 
                 final List<Map<String, Object>> finalTracks = tracks;
                 SwingUtilities.invokeLater(() -> {
+                    // Lưu danh sách track để dùng cho playlist queue
+                    currentDetailTracks = new ArrayList<>(finalTracks);
                     detailTracksPanel.removeAll();
                     detailTrackCount.setText(finalTracks.size() + " tracks");
                     if (finalTracks.isEmpty()) {
@@ -422,11 +427,26 @@ public class PlaylistPanel extends JPanel {
 
     /**
      * Phát 1 track từ playlist.
+     * Set toàn bộ danh sách track vào PlayerBar queue để hỗ trợ Next/Prev.
      */
     private void playTrack(Map<String, Object> track) {
         int trackId = JsonHelper.getInt(track, "id");
         String title = JsonHelper.getString(track, "title", "Untitled");
         String artist = JsonHelper.getString(track, "artist", "Unknown");
+
+        // Tìm index của track trong danh sách hiện tại
+        int trackIndex = -1;
+        for (int i = 0; i < currentDetailTracks.size(); i++) {
+            if (JsonHelper.getInt(currentDetailTracks.get(i), "id") == trackId) {
+                trackIndex = i;
+                break;
+            }
+        }
+
+        // Set playlist queue vào PlayerBar để hỗ trợ chuyển bài Next/Prev
+        if (trackIndex >= 0) {
+            playerBar.setPlaylistQueue(currentDetailTracks, trackIndex);
+        }
 
         new Thread(() -> {
             try {
@@ -437,6 +457,7 @@ public class PlaylistPanel extends JPanel {
                         player.load(audioData);
                         player.play();
                         playerBar.setTrackInfo(title, artist);
+                        playerBar.setCurrentTrackData(trackId, title, artist);
                     });
                 }
             } catch (Exception ex) {

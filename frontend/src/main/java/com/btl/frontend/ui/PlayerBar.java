@@ -9,17 +9,28 @@ package com.btl.frontend.ui;
  * @author ADMIN
  */
 
+import com.btl.frontend.api.ApiClient;
 import com.btl.frontend.audio.AudioPlayer;
 import com.btl.frontend.util.UIConstants;
 import com.btl.frontend.util.IconFactory;
+import com.btl.frontend.util.JsonHelper;
 import javax.swing.*;
 import java.awt.*;
 import java.awt.event.*;
 import java.awt.geom.RoundRectangle2D;
+import java.util.*;
+import java.util.List;
 
 /**
  * Bottom player bar - fixed at the bottom of the window.
  * Shows: track info, play controls, progress slider, volume.
+ * 
+ * Quản lý playlist queue để hỗ trợ chuyển bài Next/Prev:
+ * - setPlaylistQueue(): Set danh sách bài khi phát từ playlist
+ * - clearPlaylistQueue(): Xóa queue khi phát bài ngoài playlist
+ * - Nút Next: chuyển bài tiếp theo trong queue
+ * - Nút Prev: click 1 lần = tua về đầu, click 2 lần nhanh = bài trước
+ * - Auto-advance: bài hết → tự động phát bài tiếp theo
  */
 public class PlayerBar extends JPanel {
 
@@ -34,6 +45,18 @@ public class PlayerBar extends JPanel {
     private boolean isUserDragging = false;
     private String currentTrackTitle = "";
     private String currentTrackArtist = "";
+
+    // === Playlist Queue - Quản lý danh sách bài trong playlist đang phát ===
+    private List<Map<String, Object>> playlistQueue = new ArrayList<>(); // Danh sách bài trong playlist
+    private int currentTrackIndex = -1;                                   // Vị trí bài đang phát (-1 = không có queue)
+
+    // === Lịch sử phát nhạc - để hỗ trợ nút Prev khi không có playlist ===
+    private final java.util.Deque<Map<String, Object>> trackHistory = new java.util.ArrayDeque<>(); // Stack lưu bài đã phát
+    private Map<String, Object> currentPlayingTrack = null; // Track đang phát hiện tại (chứa id, title, artist)
+
+    // === Double-click detection cho nút Prev ===
+    private javax.swing.Timer prevClickTimer;    // Timer 500ms chờ click thứ 2
+    private int prevClickCount = 0;  // Đếm số lần click
 
     public PlayerBar(AudioPlayer player) {
         this.player = player;
@@ -78,24 +101,32 @@ public class PlayerBar extends JPanel {
         JPanel controls = new JPanel(new FlowLayout(FlowLayout.CENTER, 16, 0));
         controls.setOpaque(false);
 
-        // Prev button
+        // Prev button - hỗ trợ double-click detection
         JButton prevBtn = IconFactory.iconButton(IconFactory.prevIcon(24, UIConstants.TEXT_PRIMARY));
         prevBtn.setPreferredSize(new Dimension(36, 36));
         prevBtn.addMouseListener(new MouseAdapter() {
             public void mouseEntered(MouseEvent e) { prevBtn.setIcon(IconFactory.prevIcon(24, UIConstants.PRIMARY)); }
             public void mouseExited(MouseEvent e) { prevBtn.setIcon(IconFactory.prevIcon(24, UIConstants.TEXT_PRIMARY)); }
         });
+        // Logic Prev: click 1 lần = tua về đầu, click 2 lần nhanh (trong 500ms) = bài trước
+        prevBtn.addActionListener(e -> handlePrevClick());
 
         // Play/Pause button
         playPauseBtn = IconFactory.iconButton(IconFactory.playIcon(32, UIConstants.TEXT_PRIMARY));
         playPauseBtn.setPreferredSize(new Dimension(44, 44));
 
-        // Next button
+        // Next button - chuyển bài tiếp theo trong playlist queue
         JButton nextBtn = IconFactory.iconButton(IconFactory.nextIcon(24, UIConstants.TEXT_PRIMARY));
         nextBtn.setPreferredSize(new Dimension(36, 36));
         nextBtn.addMouseListener(new MouseAdapter() {
             public void mouseEntered(MouseEvent e) { nextBtn.setIcon(IconFactory.nextIcon(24, UIConstants.PRIMARY)); }
             public void mouseExited(MouseEvent e) { nextBtn.setIcon(IconFactory.nextIcon(24, UIConstants.TEXT_PRIMARY)); }
+        });
+        // Nút Next: chuyển bài tiếp trong playlist, nếu không có playlist → phát ngẫu nhiên
+        nextBtn.addActionListener(e -> {
+            if (!playNextTrack()) {
+                playRandomTrack();
+            }
         });
 
         playPauseBtn.addActionListener(e -> player.togglePlayPause());
@@ -194,12 +225,25 @@ public class PlayerBar extends JPanel {
                 SwingUtilities.invokeLater(() -> {
                     progressSlider.setValue(0);
                     currentTimeLabel.setText("0:00");
+                    // Auto-advance: thử phát bài tiếp theo trong playlist queue
+                    // Nếu không có queue hoặc đã hết → phát bài ngẫu nhiên
+                    if (!playNextTrack()) {
+                        playRandomTrack();
+                    }
                 });
             }
         });
     }
 
     public void setTrackInfo(String title, String artist) {
+        // Lưu bài hiện tại vào lịch sử trước khi chuyển bài mới
+        if (currentPlayingTrack != null) {
+            trackHistory.push(new HashMap<>(currentPlayingTrack));
+            // Giới hạn lịch sử tối đa 50 bài
+            while (trackHistory.size() > 50) {
+                trackHistory.removeLast();
+            }
+        }
         this.currentTrackTitle = title;
         this.currentTrackArtist = artist;
         trackTitle.setText(title);
@@ -207,7 +251,220 @@ public class PlayerBar extends JPanel {
         totalTimeLabel.setText(UIConstants.formatDuration(player.getTotalSeconds()));
     }
 
+    /**
+     * Lưu thông tin track đang phát (gọi từ bên ngoài khi biết trackId).
+     * Dùng để nút Prev có thể phát lại bài trước đó.
+     */
+    public void setCurrentTrackData(int trackId, String title, String artist) {
+        currentPlayingTrack = new HashMap<>();
+        currentPlayingTrack.put("id", trackId);
+        currentPlayingTrack.put("title", title);
+        currentPlayingTrack.put("artist", artist);
+    }
 
+    // ====================================================================
+    // PLAYLIST QUEUE MANAGEMENT
+    // ====================================================================
+
+    /**
+     * Set playlist queue khi user phát 1 bài từ playlist detail.
+     * Toàn bộ danh sách track trong playlist được lưu lại để hỗ trợ Next/Prev.
+     *
+     * @param tracks     Danh sách tất cả track trong playlist
+     * @param startIndex Vị trí bài đang được phát (0-based)
+     */
+    public void setPlaylistQueue(List<Map<String, Object>> tracks, int startIndex) {
+        this.playlistQueue = new ArrayList<>(tracks); // Copy để tránh thay đổi ngoài ý muốn
+        this.currentTrackIndex = startIndex;
+    }
+
+    /**
+     * Xóa playlist queue. Gọi khi phát bài từ ngoài playlist (Home, Search, Track, Profile).
+     * Sau khi xóa, nút Next/Prev sẽ không chuyển bài.
+     */
+    public void clearPlaylistQueue() {
+        this.playlistQueue.clear();
+        this.currentTrackIndex = -1;
+    }
+
+    /**
+     * Phát bài tiếp theo trong playlist queue.
+     * Nếu đang ở bài cuối hoặc không có queue → trả về false.
+     * @return true nếu đã chuyển bài thành công, false nếu không thể chuyển
+     */
+    private boolean playNextTrack() {
+        if (playlistQueue.isEmpty() || currentTrackIndex < 0) return false;
+        int nextIndex = currentTrackIndex + 1;
+        if (nextIndex >= playlistQueue.size()) return false; // Đã là bài cuối
+        playTrackAtIndex(nextIndex);
+        return true;
+    }
+
+    /**
+     * Phát bài trước trong playlist queue.
+     * Nếu đang ở bài đầu tiên hoặc không có queue → không làm gì.
+     */
+    private void playPrevTrack() {
+        if (playlistQueue.isEmpty() || currentTrackIndex < 0) return;
+        int prevIndex = currentTrackIndex - 1;
+        if (prevIndex < 0) return; // Đã là bài đầu tiên
+        playTrackAtIndex(prevIndex);
+    }
+
+    /**
+     * Phát bài tại vị trí index trong playlist queue.
+     * Download audio từ server và phát.
+     */
+    private void playTrackAtIndex(int index) {
+        if (index < 0 || index >= playlistQueue.size()) return;
+        currentTrackIndex = index;
+        Map<String, Object> track = playlistQueue.get(index);
+
+        int trackId = JsonHelper.getInt(track, "id");
+        String title = JsonHelper.getString(track, "title", "Untitled");
+        String artist = JsonHelper.getString(track, "artist",
+                JsonHelper.getString(track, "uploaderName", "Unknown"));
+
+        new Thread(() -> {
+            try {
+                // Tăng play count
+                ApiClient.post("/tracks/" + trackId + "/play", new HashMap<>());
+                // Download audio data
+                byte[] audioData = ApiClient.downloadBytes("/tracks/" + trackId + "/stream");
+                if (audioData != null) {
+                    SwingUtilities.invokeLater(() -> {
+                        player.load(audioData);
+                        player.play();
+                        setTrackInfo(title, artist);
+                        setCurrentTrackData(trackId, title, artist);
+                    });
+                }
+            } catch (Exception ex) {
+                System.err.println("[PlayerBar] Error playing track at index " + index + ": " + ex.getMessage());
+            }
+        }).start();
+    }
+
+    /**
+     * Phát bài ngẫu nhiên khi không có playlist queue hoặc đã hết playlist.
+     * Lấy danh sách track từ server (phổ biến nhất) và chọn ngẫu nhiên 1 bài.
+     */
+    private void playRandomTrack() {
+        new Thread(() -> {
+            try {
+                // Lấy danh sách track phổ biến từ server
+                Map<String, Object> response = ApiClient.get("/tracks?sort=popular&limit=30");
+                String status = JsonHelper.getString(response, "status");
+                if (!"success".equals(status)) return;
+
+                @SuppressWarnings("unchecked")
+                List<Map<String, Object>> tracks = (List<Map<String, Object>>) response.get("data");
+                if (tracks == null || tracks.isEmpty()) return;
+
+                // Chọn ngẫu nhiên 1 bài (tránh chọn lại bài đang phát)
+                java.util.Random random = new java.util.Random();
+                Map<String, Object> randomTrack = null;
+                for (int attempt = 0; attempt < 5; attempt++) {
+                    Map<String, Object> candidate = tracks.get(random.nextInt(tracks.size()));
+                    String candidateTitle = JsonHelper.getString(candidate, "title", "");
+                    if (!candidateTitle.equals(currentTrackTitle) || tracks.size() <= 1) {
+                        randomTrack = candidate;
+                        break;
+                    }
+                }
+                if (randomTrack == null) randomTrack = tracks.get(random.nextInt(tracks.size()));
+
+                int trackId = JsonHelper.getInt(randomTrack, "id");
+                String title = JsonHelper.getString(randomTrack, "title", "Untitled");
+                String artist = JsonHelper.getString(randomTrack, "artist",
+                        JsonHelper.getString(randomTrack, "uploaderName", "Unknown"));
+
+                // Tăng play count + download audio
+                ApiClient.post("/tracks/" + trackId + "/play", new HashMap<>());
+                byte[] audioData = ApiClient.downloadBytes("/tracks/" + trackId + "/stream");
+                if (audioData != null) {
+                    SwingUtilities.invokeLater(() -> {
+                        clearPlaylistQueue(); // Đảm bảo queue rỗng
+                        player.load(audioData);
+                        player.play();
+                        setTrackInfo(title, artist);
+                        setCurrentTrackData(trackId, title, artist);
+                    });
+                }
+            } catch (Exception ex) {
+                System.err.println("[PlayerBar] Error playing random track: " + ex.getMessage());
+            }
+        }).start();
+    }
+
+    /**
+     * Xử lý logic double-click cho nút Prev:
+     * - Click 1 lần: Đợi 500ms, nếu không có click thứ 2 → tua về đầu bài (seek(0))
+     * - Click 2 lần (trong 500ms): Cancel timer → chuyển về bài trước trong queue
+     *   hoặc phát lại bài trước trong lịch sử nếu không có playlist
+     */
+    private void handlePrevClick() {
+        prevClickCount++;
+        if (prevClickCount == 1) {
+            // Click lần 1: bắt đầu timer 500ms
+            prevClickTimer = new javax.swing.Timer(500, evt -> {
+                // Hết 500ms mà không có click lần 2 → tua về đầu bài
+                prevClickCount = 0;
+                player.seek(0);
+            });
+            prevClickTimer.setRepeats(false);
+            prevClickTimer.start();
+        } else if (prevClickCount >= 2) {
+            // Click lần 2 trong 500ms → chuyển bài trước
+            if (prevClickTimer != null) {
+                prevClickTimer.stop();
+            }
+            prevClickCount = 0;
+            // Nếu có playlist queue → chuyển bài trong playlist
+            // Nếu không có playlist → phát lại bài trước trong lịch sử
+            if (!playlistQueue.isEmpty() && currentTrackIndex > 0) {
+                playPrevTrack();
+            } else {
+                playFromHistory();
+            }
+        }
+    }
+
+    /**
+     * Phát lại bài trước đó từ lịch sử (khi không có playlist).
+     * Lấy bài từ đỉnh stack trackHistory, download và phát.
+     */
+    private void playFromHistory() {
+        if (trackHistory.isEmpty()) return;
+        Map<String, Object> prevTrack = trackHistory.pop();
+
+        int trackId = JsonHelper.getInt(prevTrack, "id");
+        String title = JsonHelper.getString(prevTrack, "title", "Untitled");
+        String artist = JsonHelper.getString(prevTrack, "artist", "Unknown");
+
+        new Thread(() -> {
+            try {
+                ApiClient.post("/tracks/" + trackId + "/play", new HashMap<>());
+                byte[] audioData = ApiClient.downloadBytes("/tracks/" + trackId + "/stream");
+                if (audioData != null) {
+                    SwingUtilities.invokeLater(() -> {
+                        clearPlaylistQueue();
+                        player.load(audioData);
+                        player.play();
+                        // Set trực tiếp không qua setTrackInfo để không push lại vào history
+                        currentTrackTitle = title;
+                        currentTrackArtist = artist;
+                        trackTitle.setText(title);
+                        trackArtist.setText(artist);
+                        totalTimeLabel.setText(UIConstants.formatDuration(player.getTotalSeconds()));
+                        currentPlayingTrack = new HashMap<>(prevTrack);
+                    });
+                }
+            } catch (Exception ex) {
+                System.err.println("[PlayerBar] Error playing from history: " + ex.getMessage());
+            }
+        }).start();
+    }
 
     /**
      * Custom slider UI with rounded track and thumb.
@@ -247,4 +504,3 @@ public class PlayerBar extends JPanel {
         }
     }
 }
-

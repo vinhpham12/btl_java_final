@@ -79,7 +79,7 @@ public class UIConstants {
     public static final int PADDING_SMALL = 8;         // Khoảng cách lề nhỏ
 
     // === CẤU HÌNH API ===
-    public static final String API_BASE_URL = "http://localhost:8080/api";
+    public static final String API_BASE_URL = "http://localhost:8081/api";
 
     /**
      * Tiện ích: Định dạng số giây thành chuỗi phút:giây (VD: 65 -> "1:05")

@@ -243,6 +243,8 @@ public class TrackPanel extends JPanel {
                         player.load(audioData);
                         player.play();
                         playerBar.setTrackInfo(title, artist);
+                        playerBar.clearPlaylistQueue(); // Không phải playlist → xóa queue
+                        playerBar.setCurrentTrackData(trackId, title, artist);
                         // Load waveform
                         float[] waveform = player.getWaveformData(200);
                         waveformPanel.setWaveformData(waveform);

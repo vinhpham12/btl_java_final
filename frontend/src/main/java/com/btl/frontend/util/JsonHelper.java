@@ -148,8 +148,10 @@ public class JsonHelper {
                 char c = json.charAt(pos);
                 if (c == '\\') { pos++; char e = json.charAt(pos);
                     switch(e) { case '"': sb.append('"'); break; case '\\': sb.append('\\'); break;
-                        case 'n': sb.append('\n'); break; case 'r': sb.append('\r'); break;
-                        case 't': sb.append('\t'); break; case 'u': sb.append((char)Integer.parseInt(json.substring(pos+1,pos+5),16)); pos+=4; break;
+                        case 'n': sb.append('\n'); break; 
+                        case 'r': sb.append('\r'); break;
+                        case 't': sb.append('\t'); break;
+                        case 'u': sb.append((char)Integer.parseInt(json.substring(pos+1,pos+5),16)); pos+=4; break;
                         default: sb.append(e); }
                 } else if (c == '"') { pos++; return sb.toString(); } else sb.append(c);
                 pos++;

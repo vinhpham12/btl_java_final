@@ -10,7 +10,7 @@ import java.awt.geom.*;
  */
 public class IconFactory {
 
-    // ======== PLAY ▶ (tam giác phải) ========
+    // ======== PLAY(tam giác phải) ========
     public static Icon playIcon(int size, Color color) {
         return new Icon() {
             public void paintIcon(Component c, Graphics g, int x, int y) {
@@ -27,7 +27,7 @@ public class IconFactory {
         };
     }
 
-    // ======== PAUSE ⏸ (2 thanh dọc) ========
+    // ======== PAUSE||(2 thanh dọc) ========
     public static Icon pauseIcon(int size, Color color) {
         return new Icon() {
             public void paintIcon(Component c, Graphics g, int x, int y) {
@@ -46,7 +46,7 @@ public class IconFactory {
         };
     }
 
-    // ======== PREVIOUS ⏮ (thanh + tam giác trái) ========
+    // ======== PREVIOUS(thanh + tam giác trái) ========
     public static Icon prevIcon(int size, Color color) {
         return new Icon() {
             public void paintIcon(Component c, Graphics g, int x, int y) {
@@ -67,7 +67,7 @@ public class IconFactory {
         };
     }
 
-    // ======== NEXT ⏭ (tam giác phải + thanh) ========
+    // ======== NEXT(tam giác phải + thanh) ========
     public static Icon nextIcon(int size, Color color) {
         return new Icon() {
             public void paintIcon(Component c, Graphics g, int x, int y) {
@@ -88,7 +88,7 @@ public class IconFactory {
         };
     }
 
-    // ======== HEART ♥ (trái tim - filled hoặc outline) ========
+    // ======== HEART (trái tim - filled hoặc outline) ========
     public static Icon heartIcon(int size, Color color, boolean filled) {
         return new Icon() {
             public void paintIcon(Component c, Graphics g, int x, int y) {
@@ -118,7 +118,7 @@ public class IconFactory {
         };
     }
 
-    // ======== VOLUME 🔊 (loa) ========
+    // ======== VOLUME (loa) ========
     public static Icon volumeIcon(int size, Color color) {
         return new Icon() {
             public void paintIcon(Component c, Graphics g, int x, int y) {
@@ -149,7 +149,7 @@ public class IconFactory {
         };
     }
 
-    // ======== PLUS ⊕ (thêm vào playlist) ========
+    // ======== PLUS(thêm vào playlist) ========
     public static Icon plusIcon(int size, Color color) {
         return new Icon() {
             public void paintIcon(Component c, Graphics g, int x, int y) {
@@ -169,7 +169,7 @@ public class IconFactory {
         };
     }
 
-    // ======== BACK ← (mũi tên trái) ========
+    // ======== BACK(mũi tên trái) ========
     public static Icon backIcon(int size, Color color) {
         return new Icon() {
             public void paintIcon(Component c, Graphics g, int x, int y) {
@@ -190,7 +190,7 @@ public class IconFactory {
         };
     }
 
-    // ======== CLOSE ✕ (xóa/đóng) ========
+    // ======== CLOSE (xóa/đóng) ========
     public static Icon closeIcon(int size, Color color) {
         return new Icon() {
             public void paintIcon(Component c, Graphics g, int x, int y) {
@@ -208,7 +208,7 @@ public class IconFactory {
         };
     }
 
-    // ======== MUSIC NOTE ♫ (nốt nhạc cho playlist) ========
+    // ======== MUSIC NOTE (nốt nhạc cho playlist) ========
     public static Icon musicNoteIcon(int size, Color color) {
         return new Icon() {
             public void paintIcon(Component c, Graphics g, int x, int y) {

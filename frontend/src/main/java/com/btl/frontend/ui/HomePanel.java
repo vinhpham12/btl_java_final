@@ -266,6 +266,8 @@ public class HomePanel extends JPanel {
                         player.load(audioData);
                         player.play();
                         playerBar.setTrackInfo(title, artist);
+                        playerBar.clearPlaylistQueue(); // Không phải playlist → xóa queue
+                        playerBar.setCurrentTrackData(trackId, title, artist);
                     });
                 }
             } catch (Exception ex) {

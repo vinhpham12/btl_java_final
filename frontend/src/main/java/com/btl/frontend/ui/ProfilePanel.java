@@ -311,6 +311,8 @@ public class ProfilePanel extends JPanel {
                         player.load(audioData);
                         player.play();
                         playerBar.setTrackInfo(title, artist);
+                        playerBar.clearPlaylistQueue(); // Không phải playlist → xóa queue
+                        playerBar.setCurrentTrackData(trackId, title, artist);
                     });
                 }
             } catch (Exception ex) { System.err.println("Play error: " + ex.getMessage()); }
